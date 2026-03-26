@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Celestia — Daily Horoscopes</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Cinzel:wght@400;600&family=Crimson+Pro:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #0A014F;
+    --parchment: #f7f0f7;
+    --orchid: #E2AFDE;
+    --thistle: #D3C2CE;
+    --teal: #2F6690;
+    --teal-light: #3A7CA5;
+    --rose: #c96b6b;
+  }
+
+  body {
+    background: var(--ink);
+    color: var(--parchment);
+    font-family: 'Crimson Pro', serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  #stars {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  header {
+    text-align: center;
+    padding: 60px 0 36px;
+  }
+
+  .tagline {
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--thistle);
+    margin-bottom: 18px;
+  }
+
+  h1 {
+    font-family: 'Cinzel', serif;
+    font-size: clamp(46px, 8vw, 88px);
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    color: var(--parchment);
+    line-height: 1;
+    margin-bottom: 10px;
+  }
+
+  .ornament {
+    color: var(--orchid);
+    font-size: 20px;
+    letter-spacing: 0.3em;
+    display: block;
+    margin: 14px 0;
+  }
+
+  .date-display {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 17px;
+    color: var(--thistle);
+    letter-spacing: 0.05em;
+  }
+
+  #api-bar {
+    background: rgba(47,102,144,0.14);
+    border: 1px solid rgba(58,124,165,0.32);
+    border-radius: 4px;
+    padding: 13px 18px;
+    margin-bottom: 34px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  #api-bar label {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--teal-light);
+    white-space: nowrap;
+  }
+
+  #api-key {
+    flex: 1;
+    min-width: 180px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(58,124,165,0.38);
+    border-radius: 3px;
+    padding: 8px 12px;
+    color: var(--parchment);
+    font-family: 'Crimson Pro', serif;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  #api-key:focus { border-color: var(--teal-light); }
+  #api-key::placeholder { color: rgba(247,240,247,0.28); font-style: italic; }
+
+  .key-hint {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 13px;
+    font-style: italic;
+    color: rgba(58,124,165,0.75);
+  }
+
+  .grid-label {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 0.5em;
+    text-transform: uppercase;
+    color: var(--thistle);
+    text-align: center;
+    margin-bottom: 26px;
+  }
+
+  .zodiac-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 56px;
+  }
+
+  .sign-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(226,175,222,0.16);
+    border-radius: 4px;
+    padding: 16px 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.28s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sign-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(226,175,222,0.1), rgba(58,124,165,0.07));
+    opacity: 0;
+    transition: opacity 0.28s;
+  }
+
+  .sign-card:hover { border-color: rgba(226,175,222,0.52); transform: translateY(-2px); background: rgba(255,255,255,0.06); }
+  .sign-card:hover::before { opacity: 1; }
+
+  .sign-glyph { font-size: 26px; display: block; margin-bottom: 6px; }
+  .sign-name { font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--thistle); display: block; }
+  .sign-dates { font-family: 'Cormorant Garamond', serif; font-size: 10px; color: rgba(247,240,247,0.33); display: block; margin-top: 3px; }
+
+  #reading-panel { display: none; animation: fadeUp 0.45s ease forwards; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--thistle);
+    background: none;
+    border: 1px solid rgba(226,175,222,0.22);
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.25s;
+    margin-bottom: 40px;
+  }
+  .back-btn:hover { border-color: var(--orchid); color: var(--orchid); }
+
+  .reading-header { text-align: center; margin-bottom: 34px; }
+  .reading-sign { font-size: 54px; display: block; margin-bottom: 8px; }
+  .reading-title { font-family: 'Cinzel', serif; font-size: 26px; font-weight: 400; letter-spacing: 0.2em; color: var(--parchment); margin-bottom: 4px; }
+  .reading-subtitle { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 15px; color: var(--thistle); }
+
+  .divider { display: flex; align-items: center; gap: 16px; margin: 26px 0; }
+  .divider-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(226,175,222,0.38), transparent); }
+  .divider-star { color: var(--orchid); font-size: 14px; }
+
+  .reading-body {
+    font-size: 20px;
+    line-height: 1.88;
+    color: rgba(247,240,247,0.88);
+    font-weight: 300;
+    min-height: 110px;
+  }
+
+  .reading-body.loading::after {
+    content: '';
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background: var(--orchid);
+    margin-left: 4px;
+    vertical-align: text-bottom;
+    animation: blink 0.75s ease-in-out infinite;
+  }
+
+  @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+  .aspects { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 38px; }
+
+  .aspect-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(226,175,222,0.12);
+    border-radius: 4px;
+    padding: 18px 12px;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .aspect-card.visible { opacity: 1; transform: translateY(0); }
+  .aspect-icon { font-size: 22px; display: block; margin-bottom: 8px; }
+  .aspect-label { font-family: 'Cinzel', serif; font-size: 8px; letter-spacing: 0.35em; text-transform: uppercase; color: var(--thistle); display: block; margin-bottom: 6px; }
+  .aspect-value { font-family: 'Cormorant Garamond', serif; font-size: 16px; color: var(--parchment); font-style: italic; }
+
+  .error-msg { color: var(--rose); font-style: italic; font-size: 17px; }
+
+  @media (max-width: 600px) {
+    .zodiac-grid { grid-template-columns: repeat(3, 1fr); }
+    .aspects { grid-template-columns: repeat(2, 1fr); }
+    h1 { font-size: 44px; }
+  }
+  @media (max-width: 400px) {
+    .zodiac-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+
+<div class="page">
+  <header>
+    <p class="tagline">The Celestial Oracle</p>
+    <h1>CELESTIA</h1>
+    <span class="ornament">✦ · ✦ · ✦</span>
+    <p class="date-display" id="date-display"></p>
+  </header>
+
+  <div id="api-bar">
+    <label for="api-key">Gemini API Key</label>
+    <input id="api-key" type="password" placeholder="Paste your Gemini API key…" autocomplete="off" />
+    <span class="key-hint">get one free at aistudio.google.com</span>
+  </div>
+
+  <div id="picker">
+    <p class="grid-label">Choose your sign</p>
+    <div class="zodiac-grid" id="zodiac-grid"></div>
+  </div>
+
+  <div id="reading-panel">
+    <button class="back-btn" id="back-btn">← All Signs</button>
+    <div class="reading-header">
+      <span class="reading-sign" id="r-glyph"></span>
+      <div class="reading-title" id="r-name"></div>
+      <div class="reading-subtitle" id="r-dates"></div>
+    </div>
+    <div class="divider">
+      <div class="divider-line"></div>
+      <span class="divider-star">✦</span>
+      <div class="divider-line"></div>
+    </div>
+    <div class="reading-body" id="reading-body"></div>
+    <div class="aspects" id="aspects-grid"></div>
+  </div>
+</div>
+
+<script>
+const SIGNS = [
+  { name: "Aries",       glyph: "♈", dates: "Mar 21 – Apr 19", element: "Fire",  ruling: "Mars" },
+  { name: "Taurus",      glyph: "♉", dates: "Apr 20 – May 20", element: "Earth", ruling: "Venus" },
+  { name: "Gemini",      glyph: "♊", dates: "May 21 – Jun 20", element: "Air",   ruling: "Mercury" },
+  { name: "Cancer",      glyph: "♋", dates: "Jun 21 – Jul 22", element: "Water", ruling: "Moon" },
+  { name: "Leo",         glyph: "♌", dates: "Jul 23 – Aug 22", element: "Fire",  ruling: "Sun" },
+  { name: "Virgo",       glyph: "♍", dates: "Aug 23 – Sep 22", element: "Earth", ruling: "Mercury" },
+  { name: "Libra",       glyph: "♎", dates: "Sep 23 – Oct 22", element: "Air",   ruling: "Venus" },
+  { name: "Scorpio",     glyph: "♏", dates: "Oct 23 – Nov 21", element: "Water", ruling: "Pluto" },
+  { name: "Sagittarius", glyph: "♐", dates: "Nov 22 – Dec 21", element: "Fire",  ruling: "Jupiter" },
+  { name: "Capricorn",   glyph: "♑", dates: "Dec 22 – Jan 19", element: "Earth", ruling: "Saturn" },
+  { name: "Aquarius",    glyph: "♒", dates: "Jan 20 – Feb 18", element: "Air",   ruling: "Uranus" },
+  { name: "Pisces",      glyph: "♓", dates: "Feb 19 – Mar 20", element: "Water", ruling: "Neptune" },
+];
+
+// Starfield
+const canvas = document.getElementById('stars');
+const ctx = canvas.getContext('2d');
+function drawStars() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  for (let i = 0; i < 220; i++) {
+    const x = Math.random() * canvas.width;
+    const y = Math.random() * canvas.height;
+    const r = Math.random() * 1.3;
+    const o = Math.random() * 0.55 + 0.1;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${o})`;
+    ctx.fill();
+  }
+}
+drawStars();
+window.addEventListener('resize', drawStars);
+
+// Date header
+const now = new Date();
+document.getElementById('date-display').textContent =
+  now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+// Build sign grid
+const grid = document.getElementById('zodiac-grid');
+SIGNS.forEach((s, i) => {
+  const card = document.createElement('div');
+  card.className = 'sign-card';
+  card.innerHTML = `<span class="sign-glyph">${s.glyph}</span><span class="sign-name">${s.name}</span><span class="sign-dates">${s.dates}</span>`;
+  card.addEventListener('click', () => showReading(i));
+  grid.appendChild(card);
+});
+
+// Back button
+document.getElementById('back-btn').addEventListener('click', () => {
+  document.getElementById('reading-panel').style.display = 'none';
+  document.getElementById('picker').style.display = 'block';
+  document.getElementById('api-bar').style.display = 'flex';
+});
+
+async function showReading(idx) {
+  const sign = SIGNS[idx];
+  const apiKey = document.getElementById('api-key').value.trim();
+
+  document.getElementById('picker').style.display = 'none';
+  document.getElementById('api-bar').style.display = 'none';
+
+  const panel = document.getElementById('reading-panel');
+  panel.style.display = 'block';
+  panel.style.animation = 'none';
+  void panel.offsetWidth;
+  panel.style.animation = '';
+
+  document.getElementById('r-glyph').textContent = sign.glyph;
+  document.getElementById('r-name').textContent = sign.name.toUpperCase();
+  document.getElementById('r-dates').textContent = sign.dates;
+
+  const body = document.getElementById('reading-body');
+  body.textContent = '';
+  body.classList.add('loading');
+
+  const aspectsGrid = document.getElementById('aspects-grid');
+  aspectsGrid.innerHTML = '';
+
+  if (!apiKey) {
+    body.classList.remove('loading');
+    body.innerHTML = `<span class="error-msg">Please enter your Gemini API key to receive your reading.</span>`;
+    return;
+  }
+
+  const today = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  const prompt = `You are a poetic, mystical astrologer. Write a daily horoscope for ${sign.name} for ${today}.
+
+Return ONLY a raw JSON object — no markdown, no backticks, no preamble:
+{
+  "reading": "A flowing, atmospheric 3-4 sentence daily horoscope. Mystical and lyrical tone. No clichés.",
+  "lucky_color": "one evocative color name",
+  "lucky_number": "a single number 1-99",
+  "focus": "two or three words",
+  "energy": "one word describing today's vibe"
+}`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 1.1, maxOutputTokens: 600 }
+        })
+      }
+    );
+
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error?.message || `HTTP ${res.status}`);
+    const fullText = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    body.classList.remove('loading');
+
+    const jsonMatch = fullText.match(/\{[\s\S]*?\}/);
+    if (jsonMatch) {
+      let data;
+      try { data = JSON.parse(jsonMatch[0]); } catch { data = { reading: fullText }; }
+
+      const text = data.reading || fullText;
+      body.textContent = '';
+      for (let i = 0; i < text.length; i++) {
+        body.textContent += text[i];
+        if (i % 3 === 0) await new Promise(r => setTimeout(r, 14));
+      }
+
+      const aspects = [
+        { icon: '🎨', label: 'Lucky Color',   value: data.lucky_color || '—' },
+        { icon: '🔢', label: 'Lucky Number',  value: data.lucky_number || '—' },
+        { icon: '🎯', label: 'Focus',         value: data.focus || '—' },
+        { icon: '⚡', label: 'Energy',        value: data.energy || '—' },
+        { icon: '🪐', label: 'Ruling Planet', value: sign.ruling },
+        { icon: '🌊', label: 'Element',       value: sign.element },
+      ];
+
+      aspects.forEach((a, i) => {
+        const card = document.createElement('div');
+        card.className = 'aspect-card';
+        card.innerHTML = `<span class="aspect-icon">${a.icon}</span><span class="aspect-label">${a.label}</span><span class="aspect-value">${a.value}</span>`;
+        aspectsGrid.appendChild(card);
+        setTimeout(() => card.classList.add('visible'), i * 100 + 300);
+      });
+    } else {
+      body.textContent = fullText;
+    }
+
+  } catch (err) {
+    body.classList.remove('loading');
+    body.innerHTML = `<span class="error-msg">The stars are silent… (${err.message})</span>`;
+  }
+}
+</script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Celestia — Daily Horoscopes</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Cinzel:wght@400;600&family=Crimson+Pro:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #0A014F;
+    --parchment: #f7f0f7;
+    --orchid: #E2AFDE;
+    --thistle: #D3C2CE;
+    --teal: #2F6690;
+    --teal-light: #3A7CA5;
+    --rose: #c96b6b;
+  }
+
+  body {
+    background: var(--ink);
+    color: var(--parchment);
+    font-family: 'Crimson Pro', serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  #stars {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  header {
+    text-align: center;
+    padding: 60px 0 36px;
+  }
+
+  .tagline {
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--thistle);
+    margin-bottom: 18px;
+  }
+
+  h1 {
+    font-family: 'Cinzel', serif;
+    font-size: clamp(46px, 8vw, 88px);
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    color: var(--parchment);
+    line-height: 1;
+    margin-bottom: 10px;
+  }
+
+  .ornament {
+    color: var(--orchid);
+    font-size: 20px;
+    letter-spacing: 0.3em;
+    display: block;
+    margin: 14px 0;
+  }
+
+  .date-display {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 17px;
+    color: var(--thistle);
+    letter-spacing: 0.05em;
+  }
+
+  #api-bar {
+    background: rgba(47,102,144,0.14);
+    border: 1px solid rgba(58,124,165,0.32);
+    border-radius: 4px;
+    padding: 13px 18px;
+    margin-bottom: 34px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  #api-bar label {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--teal-light);
+    white-space: nowrap;
+  }
+
+  #api-key {
+    flex: 1;
+    min-width: 180px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(58,124,165,0.38);
+    border-radius: 3px;
+    padding: 8px 12px;
+    color: var(--parchment);
+    font-family: 'Crimson Pro', serif;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  #api-key:focus { border-color: var(--teal-light); }
+  #api-key::placeholder { color: rgba(247,240,247,0.28); font-style: italic; }
+
+  .key-hint {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 13px;
+    font-style: italic;
+    color: rgba(58,124,165,0.75);
+  }
+
+  .grid-label {
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 0.5em;
+    text-transform: uppercase;
+    color: var(--thistle);
+    text-align: center;
+    margin-bottom: 26px;
+  }
+
+  .zodiac-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 56px;
+  }
+
+  .sign-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(226,175,222,0.16);
+    border-radius: 4px;
+    padding: 16px 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.28s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .sign-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(226,175,222,0.1), rgba(58,124,165,0.07));
+    opacity: 0;
+    transition: opacity 0.28s;
+  }
+
+  .sign-card:hover { border-color: rgba(226,175,222,0.52); transform: translateY(-2px); background: rgba(255,255,255,0.06); }
+  .sign-card:hover::before { opacity: 1; }
+
+  .sign-glyph { font-size: 26px; display: block; margin-bottom: 6px; }
+  .sign-name { font-family: 'Cinzel', serif; font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--thistle); display: block; }
+  .sign-dates { font-family: 'Cormorant Garamond', serif; font-size: 10px; color: rgba(247,240,247,0.33); display: block; margin-top: 3px; }
+
+  #reading-panel { display: none; animation: fadeUp 0.45s ease forwards; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Cinzel', serif;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--thistle);
+    background: none;
+    border: 1px solid rgba(226,175,222,0.22);
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.25s;
+    margin-bottom: 40px;
+  }
+  .back-btn:hover { border-color: var(--orchid); color: var(--orchid); }
+
+  .reading-header { text-align: center; margin-bottom: 34px; }
+  .reading-sign { font-size: 54px; display: block; margin-bottom: 8px; }
+  .reading-title { font-family: 'Cinzel', serif; font-size: 26px; font-weight: 400; letter-spacing: 0.2em; color: var(--parchment); margin-bottom: 4px; }
+  .reading-subtitle { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 15px; color: var(--thistle); }
+
+  .divider { display: flex; align-items: center; gap: 16px; margin: 26px 0; }
+  .divider-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(226,175,222,0.38), transparent); }
+  .divider-star { color: var(--orchid); font-size: 14px; }
+
+  .reading-body {
+    font-size: 20px;
+    line-height: 1.88;
+    color: rgba(247,240,247,0.88);
+    font-weight: 300;
+    min-height: 110px;
+  }
+
+  .reading-body.loading::after {
+    content: '';
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background: var(--orchid);
+    margin-left: 4px;
+    vertical-align: text-bottom;
+    animation: blink 0.75s ease-in-out infinite;
+  }
+
+  @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+  .aspects { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 38px; }
+
+  .aspect-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(226,175,222,0.12);
+    border-radius: 4px;
+    padding: 18px 12px;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .aspect-card.visible { opacity: 1; transform: translateY(0); }
+  .aspect-icon { font-size: 22px; display: block; margin-bottom: 8px; }
+  .aspect-label { font-family: 'Cinzel', serif; font-size: 8px; letter-spacing: 0.35em; text-transform: uppercase; color: var(--thistle); display: block; margin-bottom: 6px; }
+  .aspect-value { font-family: 'Cormorant Garamond', serif; font-size: 16px; color: var(--parchment); font-style: italic; }
+
+  .error-msg { color: var(--rose); font-style: italic; font-size: 17px; }
+
+  @media (max-width: 600px) {
+    .zodiac-grid { grid-template-columns: repeat(3, 1fr); }
+    .aspects { grid-template-columns: repeat(2, 1fr); }
+    h1 { font-size: 44px; }
+  }
+  @media (max-width: 400px) {
+    .zodiac-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+
+<div class="page">
+  <header>
+    <p class="tagline">The Celestial Oracle</p>
+    <h1>CELESTIA</h1>
+    <span class="ornament">✦ · ✦ · ✦</span>
+    <p class="date-display" id="date-display"></p>
+  </header>
+
+  <div id="api-bar">
+    <label for="api-key">Gemini API Key</label>
+    <input id="api-key" type="password" placeholder="Paste your Gemini API key…" autocomplete="off" />
+    <span class="key-hint">get one free at aistudio.google.com</span>
+  </div>
+
+  <div id="picker">
+    <p class="grid-label">Choose your sign</p>
+    <div class="zodiac-grid" id="zodiac-grid"></div>
+  </div>
+
+  <div id="reading-panel">
+    <button class="back-btn" id="back-btn">← All Signs</button>
+    <div class="reading-header">
+      <span class="reading-sign" id="r-glyph"></span>
+      <div class="reading-title" id="r-name"></div>
+      <div class="reading-subtitle" id="r-dates"></div>
+    </div>
+    <div class="divider">
+      <div class="divider-line"></div>
+      <span class="divider-star">✦</span>
+      <div class="divider-line"></div>
+    </div>
+    <div class="reading-body" id="reading-body"></div>
+    <div class="aspects" id="aspects-grid"></div>
+  </div>
+</div>
+
+<script>
+const SIGNS = [
+  { name: "Aries",       glyph: "♈", dates: "Mar 21 – Apr 19", element: "Fire",  ruling: "Mars" },
+  { name: "Taurus",      glyph: "♉", dates: "Apr 20 – May 20", element: "Earth", ruling: "Venus" },
+  { name: "Gemini",      glyph: "♊", dates: "May 21 – Jun 20", element: "Air",   ruling: "Mercury" },
+  { name: "Cancer",      glyph: "♋", dates: "Jun 21 – Jul 22", element: "Water", ruling: "Moon" },
+  { name: "Leo",         glyph: "♌", dates: "Jul 23 – Aug 22", element: "Fire",  ruling: "Sun" },
+  { name: "Virgo",       glyph: "♍", dates: "Aug 23 – Sep 22", element: "Earth", ruling: "Mercury" },
+  { name: "Libra",       glyph: "♎", dates: "Sep 23 – Oct 22", element: "Air",   ruling: "Venus" },
+  { name: "Scorpio",     glyph: "♏", dates: "Oct 23 – Nov 21", element: "Water", ruling: "Pluto" },
+  { name: "Sagittarius", glyph: "♐", dates: "Nov 22 – Dec 21", element: "Fire",  ruling: "Jupiter" },
+  { name: "Capricorn",   glyph: "♑", dates: "Dec 22 – Jan 19", element: "Earth", ruling: "Saturn" },
+  { name: "Aquarius",    glyph: "♒", dates: "Jan 20 – Feb 18", element: "Air",   ruling: "Uranus" },
+  { name: "Pisces",      glyph: "♓", dates: "Feb 19 – Mar 20", element: "Water", ruling: "Neptune" },
+];
+
+// Starfield
+const canvas = document.getElementById('stars');
+const ctx = canvas.getContext('2d');
+function drawStars() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  for (let i = 0; i < 220; i++) {
+    const x = Math.random() * canvas.width;
+    const y = Math.random() * canvas.height;
+    const r = Math.random() * 1.3;
+    const o = Math.random() * 0.55 + 0.1;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${o})`;
+    ctx.fill();
+  }
+}
+drawStars();
+window.addEventListener('resize', drawStars);
+
+// Date header
+const now = new Date();
+document.getElementById('date-display').textContent =
+  now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+// Build sign grid
+const grid = document.getElementById('zodiac-grid');
+SIGNS.forEach((s, i) => {
+  const card = document.createElement('div');
+  card.className = 'sign-card';
+  card.innerHTML = `<span class="sign-glyph">${s.glyph}</span><span class="sign-name">${s.name}</span><span class="sign-dates">${s.dates}</span>`;
+  card.addEventListener('click', () => showReading(i));
+  grid.appendChild(card);
+});
+
+// Back button
+document.getElementById('back-btn').addEventListener('click', () => {
+  document.getElementById('reading-panel').style.display = 'none';
+  document.getElementById('picker').style.display = 'block';
+  document.getElementById('api-bar').style.display = 'flex';
+});
+
+async function showReading(idx) {
+  const sign = SIGNS[idx];
+  const apiKey = document.getElementById('api-key').value.trim();
+
+  document.getElementById('picker').style.display = 'none';
+  document.getElementById('api-bar').style.display = 'none';
+
+  const panel = document.getElementById('reading-panel');
+  panel.style.display = 'block';
+  panel.style.animation = 'none';
+  void panel.offsetWidth;
+  panel.style.animation = '';
+
+  document.getElementById('r-glyph').textContent = sign.glyph;
+  document.getElementById('r-name').textContent = sign.name.toUpperCase();
+  document.getElementById('r-dates').textContent = sign.dates;
+
+  const body = document.getElementById('reading-body');
+  body.textContent = '';
+  body.classList.add('loading');
+
+  const aspectsGrid = document.getElementById('aspects-grid');
+  aspectsGrid.innerHTML = '';
+
+  if (!apiKey) {
+    body.classList.remove('loading');
+    body.innerHTML = `<span class="error-msg">Please enter your Gemini API key to receive your reading.</span>`;
+    return;
+  }
+
+  const today = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  const prompt = `You are a poetic, mystical astrologer. Write a daily horoscope for ${sign.name} for ${today}.
+
+Return ONLY a raw JSON object — no markdown, no backticks, no preamble:
+{
+  "reading": "A flowing, atmospheric 3-4 sentence daily horoscope. Mystical and lyrical tone. No clichés.",
+  "lucky_color": "one evocative color name",
+  "lucky_number": "a single number 1-99",
+  "focus": "two or three words",
+  "energy": "one word describing today's vibe"
+}`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 1.1, maxOutputTokens: 600 }
+        })
+      }
+    );
+
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error?.message || `HTTP ${res.status}`);
+    const fullText = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    body.classList.remove('loading');
+
+    const jsonMatch = fullText.match(/\{[\s\S]*?\}/);
+    if (jsonMatch) {
+      let data;
+      try { data = JSON.parse(jsonMatch[0]); } catch { data = { reading: fullText }; }
+
+      const text = data.reading || fullText;
+      body.textContent = '';
+      for (let i = 0; i < text.length; i++) {
+        body.textContent += text[i];
+        if (i % 3 === 0) await new Promise(r => setTimeout(r, 14));
+      }
+
+      const aspects = [
+        { icon: '🎨', label: 'Lucky Color',   value: data.lucky_color || '—' },
+        { icon: '🔢', label: 'Lucky Number',  value: data.lucky_number || '—' },
+        { icon: '🎯', label: 'Focus',         value: data.focus || '—' },
+        { icon: '⚡', label: 'Energy',        value: data.energy || '—' },
+        { icon: '🪐', label: 'Ruling Planet', value: sign.ruling },
+        { icon: '🌊', label: 'Element',       value: sign.element },
+      ];
+
+      aspects.forEach((a, i) => {
+        const card = document.createElement('div');
+        card.className = 'aspect-card';
+        card.innerHTML = `<span class="aspect-icon">${a.icon}</span><span class="aspect-label">${a.label}</span><span class="aspect-value">${a.value}</span>`;
+        aspectsGrid.appendChild(card);
+        setTimeout(() => card.classList.add('visible'), i * 100 + 300);
+      });
+    } else {
+      body.textContent = fullText;
+    }
+
+  } catch (err) {
+    body.classList.remove('loading');
+    body.innerHTML = `<span class="error-msg">The stars are silent… (${err.message})</span>`;
+  }
+}
+</script>
+</body>
+</html>
